@@ -1,0 +1,101 @@
+#!/bin/bash
+
+declare -a out_head
+declare -a out_body
+declare -a out_list
+declare -i max_indent=0 i ii
+
+for script in /etc/rc.motd.d/*.sh; do
+	block=""
+	type="body"
+
+	if [ -x $script ]; then
+		while IFS=""; read line; do
+		    if grep -qe '^@\(list\|body\|head\)\b' <<< "$line"; then
+				if [ -n "$block" ]; then
+				    if [[ "$type" == "head" ]]; then
+				        out_head+=("$block")
+				        
+				    else
+				        out_body+=("$block")
+				    fi
+				    
+				    block=""
+				fi
+				
+				if grep -qe '^@list\b' <<< "$line"; then
+				    head="$(cut -d ' ' -f2- <<< "$line" | cut -d ':' -f1)"
+				    body="$(cut -d ' ' -f2- <<< "$line" | cut -d ':' -f2-)"
+				    
+				    if [ $max_indent -lt $(echo -n "$head" | wc -c) ]; then
+				        max_indent=$(echo -n "$head" | wc -c)
+				    fi
+				    
+				    out_list+=("$head")
+				    out_list+=("$body")
+				
+				else
+				    type=$(grep -oe '^@\(body\|head\)\b' <<< "$line" | sed 's/^@//')
+				    strip="$(sed 's/@[a-z]\+\ \?//' <<< "$line")"
+				    
+				    if [ -n "$strip" ]; then
+				        block+="$strip\n"
+				    fi
+				fi
+			
+			else
+				block+="$line\n"
+			fi
+		
+		done < <($script)
+		
+		if [ -n "$block" ]; then
+		    if [[ "$type" == "head" ]]; then
+		        out_head+=("$block")
+		        
+		    else
+		        out_body+=("$block")
+		    fi
+		fi
+	fi
+done
+
+for ((i=0; i < ${#out_head[@]}; i++)); do
+    echo -en "${out_head[$i]}"
+    
+    if [ $i -lt $((${#out_head[@]} - 1)) ]; then
+        echo ""
+    fi
+done
+
+if [ ${#out_list[@]} -gt 0 ] && [ ${#out_head[@]} -gt 0 ]; then
+    echo ""
+fi
+
+for ((i=0; i < ${#out_list[@]}; i++)); do
+    if [ $(($i % 2)) -eq 0 ]; then
+        echo -en "\033[02;36m  ${out_list[$i]}\033[0m"
+    
+        for (( ii=0; ii < $(($max_indent - $(echo -n "${out_list[$i]}" | wc -c) + 4)); ii++ )); do
+            echo -n " "
+        done
+    
+    else
+        echo -e "\033[00;37m${out_list[$i]}\033[0m"
+    fi
+done
+
+if [ ${#out_body[@]} -gt 0 ] && ( [ ${#out_list[@]} -gt 0 ] || [ ${#out_head[@]} -gt 0 ] ); then
+    echo ""
+fi
+
+for ((i=0; i < ${#out_body[@]}; i++)); do
+    echo -en "${out_body[$i]}"
+    
+    if [ $i -lt $((${#out_body[@]} - 1)) ]; then
+        echo ""
+    fi
+done
+
+echo ""
+
