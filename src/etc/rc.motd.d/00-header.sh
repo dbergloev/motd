@@ -2,8 +2,13 @@
 
 echo "@head"
 
-if [ -f /etc/lsb-release ]; then
-    descr="$(grep 'DISTRIB_DESCRIPTION' /etc/lsb-release | awk -F'"' '{print $2}')"
+if [ -f /etc/lsb-release ] || which lsb_release >/dev/null 2>&1; then
+    if [ -f /etc/lsb-release ]; then
+        descr="$(grep 'DISTRIB_DESCRIPTION' /etc/lsb-release | awk -F'"' '{print $2}')"
+        
+    else
+        descr="$(lsb_release -a | grep 'Description:' | cut -f2-)"
+    fi
 
     if [ -n "$descr" ]; then
         echo -en "\033[02;37m$descr ("
